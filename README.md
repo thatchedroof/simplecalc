@@ -69,9 +69,9 @@ x-5~~~(\text{error})}
 
 Inputting $\text{undo}$ or $\text{redo}$ undoes/redoes the last command.
 
-### Clear
+### Clearall
 
-Inputting $\text{clear}$ erases the entire calculation history.
+Inputting $\text{clearall}$ erases the entire calculation history.
 
 ## Known issues
 
