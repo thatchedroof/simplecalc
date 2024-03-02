@@ -1,4 +1,4 @@
-# Simplecalc
+# [Simplecalc](https://github.com/thatchedroof/simplecalc/releases/latest)
 
 Simplecalc is a windows desktop calculator for students working on algebra.
 
