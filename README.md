@@ -18,51 +18,52 @@ The calculation history is preserved on closing and reopening. Previous calculat
 
 The previous calculation is stored in the variable $ans$.
 
-> [!NOTE] Example
-> $$3+9-4~~~~~(8)$$
-> $$ans+7~~~~~~(15)$$
+``` math
+\displaylines{3+9-4~~~~~(8) \\
+ans+7~~~~~~(15)}
+```
 
 ### Algebra
 
 Simplecalc allows the user to keep a history of equations to aid in the process of solving, although it doesn't do any solving itself.
 
-> [!NOTE] Example
-> $$(x+2)^2-3~~~~~~$$
-> $$x^2+4x+4-3$$
-> $$x^2+4x+1~~~~~~~$$
+``` math
+\displaylines{(x+2)^2-3~~~~~~ \\
+x^2+4x+4-3 \\
+x^2+4x+1~~~~~~~ \\}
+```
 
 ### 'Func' call
 
 Any algebraic equations will be implicitly parsed as a function (stored as 'func') that can be called in future calculations.
 
-> [!NOTE] Example
-> $$3x^2-5y+\sin(z)$$
-> $$\text{func}(3, 4, \frac{\pi}{2})~~~~(8)$$
+``` math
+\displaylines{3x^2-5y+\sin(z) \\
+\text{func}(3, 4, \frac{\pi}{2})~~~~(8)}
+```
 
 > $\text{func}(3, 4, \frac{\pi}{2})$ is evaluated as $3(3)^2-5(4)+\sin(\frac{\pi}{2})$.
 
 ### Tables
 
-Inputting $\text{\#row,column}$ (like $\# 3,2$) will show a table, which can then be used for things like polynomial multiplication. The table can be traversed using the arrow keys.
+Inputting $\text{\\#row,column}$ (like $\\# 3,2$) will show a table, which can then be used for things like polynomial multiplication. The table can be traversed using the arrow keys.
 
-#### Example:
-
-> [!NOTE] Example
-> $\# 2,2$
-> | $\times$ | $2x^2$ |  $2$  |
-> | :------: | :----: | :---: |
-> |   $x$    | $2x^3$ | $2x$  |
-> |   $3$    | $6x^2$ |  $6$  |
+$\\# 2,2$
+| $\times$ | $2x^2$ |  $2$  |
+| :------: | :----: | :---: |
+|   $x$    | $2x^3$ | $2x$  |
+|   $3$    | $6x^2$ |  $6$  |
 
 ### Del
 
 The $\text{del}$ keyword allows the user to delete a variable from scope.
 
-> [!NOTE] Example
-> $$x=3~~~~~~~~~~~~~~~$$
-> $$x+4~~~(7)~~~~~~~$$
-> $$\text{del}~x~~~~~~~~~~~~~~~~$$
-> $$x-5~~~(\text{error})$$
+``` math
+\displaylines{x=3~~~~~~~~~~~~~~ \\
+x+4~~~(7)~~~~~~~ \\
+\text{del}~x~~~~~~~~~~~~~~~~ \\
+x-5~~~(\text{error})}
+```
 
 ### Undo/Redo
 
