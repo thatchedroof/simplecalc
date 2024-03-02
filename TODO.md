@@ -9,10 +9,12 @@
 -   [x] Colored brackets
 -   [x] f' -> f_prime
 -   [ ] Infinite scroll with scroll to bottom icon
--   [ ] Persistent storage using tauri-plugin-store-api
+-   [x] Persistent storage using tauri-plugin-store-api
 -   [ ] Use the mobile alpha version to make an app
 -   [x] Use window vibrancy (mica or acrylic) and [more plugins](https://github.com/tauri-apps/awesome-tauri?tab=readme-ov-file)
 -   [ ] deg sin(x) or rad sin(x)
 -   [ ] Visually replace func() calls with math.resolve()
 -   [ ] Multiple undo and redo with ctrl+z, both undoing text input and undoing calculations
 -   [ ] SimplifyConstants function that doesn't collapse functions or constants (like sqrt(2) or 3pi)
+-   [ ] Allow copying and pasting in table mode when editMode isn't on
+-   [ ] Allow adding function to scope history

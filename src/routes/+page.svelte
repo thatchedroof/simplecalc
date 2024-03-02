@@ -126,12 +126,12 @@
                     color = colors[levels[index]];
                     // Additional check for unmatched opening brackets to add extra class
                     if (unmatchedOpening.hasOwnProperty(index)) {
-                        return `<span class="${baseClass} highlight-unmatched-open">${char}</span>`;
+                        return `<span class="${baseClass} highlight-unmatched-open highlight">${char}</span>`;
                     }
-                    return `<span class="${baseClass}">${char}</span>`;
+                    return `<span class="${baseClass} highlight">${char}</span>`;
                 } else if (unmatchedClosing.hasOwnProperty(index)) {
                     // Check if the character is an unmatched closing bracket
-                    return `<span class="highlight-unmatched">${char}</span>`; // Distinct class for unmatched closing brackets
+                    return `<span class="highlight-unmatched highlight">${char}</span>`; // Distinct class for unmatched closing brackets
                 }
                 return char;
             })
@@ -554,6 +554,7 @@
         await appWindow.setDecorations(true);
 
         await history.init();
+        history.switch = !history.switch;
 
         const detach = await attachConsole();
 
@@ -744,39 +745,58 @@
 
     .textarea-container {
         position: relative;
-        background-color: transparent;
+        height: 3.5em;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0);
+    }
+
+    .textarea-container:before {
+        pointer-events: none;
+        background-image: url('floral-pattern.svg');
+        transform: scale(0.7) rotate(45deg);
+        z-index: 9;
+        content: ' ';
+        display: block;
+        position: absolute;
+        top: -360px;
+        left: -30px;
+        width: 800px;
+        height: 800px;
+        opacity: 0.04;
     }
 
     textarea,
     .overlay {
+        position: relative;
         font-family: 'Inter', sans-serif;
-        font-size: 1.5rem;
-        padding: 1rem;
+        font-size: 1.5em;
+        font-weight: 100;
+        padding: 0.66666666em;
         width: calc(100vw);
         height: 1em;
         /* color: white; */
         /* background-color: #2e2e2e; */
         /* background-color: #eaeaea; */
         overflow: hidden;
-        background-color: rgba(235, 235, 235, 0.071);
-        color: black;
+        background-color: rgba(255, 255, 255, 0);
+        color: rgb(255, 255, 255);
     }
 
     textarea {
         /* opacity: 0.7; */
-        z-index: 2;
-        border: none;
+        border: 0 none;
+        outline: none;
         resize: none;
     }
 
     .overlay {
-        pointer-events: none;
         position: absolute;
-        top: 0;
+        pointer-events: none;
         left: 0;
-        z-index: 1;
-        color: transparent;
-        mix-blend-mode: hard-light;
+        top: 0;
+        z-index: 11;
+        background-color: transparent;
+        mix-blend-mode: multiply;
     }
 
     .container {
@@ -799,34 +819,49 @@
         /* background-color: #2e2e2e; */
         background-color: rgba(235, 235, 235, 0);
         color: white;
+        height: 1em;
     }
 
     :global(.highlight-0) {
-        color: white; /* Highlight color */
+        --highlight-color: rgb(211, 90, 255);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-1) {
-        color: blue; /* Highlight color */
+        --highlight-color: rgb(92, 92, 255);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-2) {
-        color: green; /* Highlight color */
+        --highlight-color: rgb(74, 138, 156);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-3) {
-        color: orange; /* Highlight color */
+        --highlight-color: rgb(84, 233, 114);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-4) {
-        color: rgb(218, 0, 218); /* Highlight color */
+        --highlight-color: rgb(179, 244, 80);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-5) {
-        color: brown; /* Highlight color */
+        --highlight-color: rgb(229, 232, 65);
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-unmatched) {
-        color: red; /* Highlight color */
+        --highlight-color: red;
+        color: var(--highlight-color); /* Highlight color */
+        -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
         background-color: rgba(255, 0, 0, 0.2);
     }
 
@@ -834,12 +869,17 @@
         background-color: rgba(255, 0, 0, 0.2);
     }
 
+    :global(.highlight) {
+        --highlight-outline-px: 1.3px;
+    }
+
     button {
         font-family: 'Inter', sans-serif;
         color: white;
-        background-color: #232323;
+        background-color: rgba(12, 12, 12, 0.314);
         border: none;
         cursor: pointer;
+        position: relative;
     }
 
     /* style the HTML output */

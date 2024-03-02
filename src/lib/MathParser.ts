@@ -16,11 +16,11 @@ export class MathParser {
             // 'createUnit': function () { throw new Error('Function createUnit is disabled'); },
             // 'evaluate': function () { throw new Error('Function evaluate is disabled'); },
             // 'parse': function () { throw new Error('Function parse is disabled'); },
-            // 'simplify': function () { throw new Error('Function simplify is disabled'); },
+            'simplify': function () { throw new Error('Function simplify is disabled'); },
             'derivative': function () { throw new Error('Function derivative is disabled'); },
         }, { override: true });
     }
-
+    //
     evaluate(expr: string, scope?: object): any {
         let result = this.limitedEval(expr, scope ?? this.scope);
         this.addHistory(expr, result);
@@ -116,6 +116,9 @@ export class MathParser {
 
 export function latexizeEquation(eq: string, parser: MathParser, removeTilde: boolean = false) {
     console.log(eq);
+    if (eq === '') {
+        return '';
+    }
     let parsedEquation = '';
     let options = { parenthesis: 'auto', implicit: 'hide' };
     try {

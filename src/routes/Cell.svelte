@@ -14,16 +14,18 @@
     export let selected: [number, number] = [-1, -1];
 
     let selectedValue = '';
-    $: selectedValue =
+    $: (selectedValue =
         header === 'row'
             ? rowHeaders[i]
             : header === 'col'
               ? colHeaders[j]
-              : table[i][j];
+              : table[i][j]),
+        console.log('selectedValue', selectedValue);
 
     let waitingForSelection = false;
 
     const onCellClick = (cell: HTMLElement) => {
+        console.log('click', cell, i, j, selected, waitingForSelection);
         if (waitingForSelection) {
             cell.focus();
             console.log(table);
@@ -34,29 +36,44 @@
             } else {
                 cell.textContent = table[i][j];
             }
+            if (cell.textContent.trim() === '') {
+                // Don't add a range, just focus the cell
+                cell.textContent = ' ';
+                selectedValue = ' ';
+                cell.focus();
+                console.log('empty');
+            }
             const range = document.createRange();
             const selection = window.getSelection();
             range.selectNodeContents(cell);
             selection.removeAllRanges();
             selection.addRange(range);
+
             waitingForSelection = false;
             return;
         }
     };
 </script>
 
-{#if selectedValue == null || selectedValue.trim() === '' || (selected[0] === i && selected[1] === j)}
+{#if selectedValue == null || (selected[0] === i && selected[1] === j)}
     <div
         id="cell-{i}-{j}"
-        class="cell {header ? header + '-header' : 'table-cell'}"
+        class="cell {header ? header + '-header' : 'table-cell'} selected"
         style="grid-column: {j + 2}; grid-row: {i + 2}"
     >
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
         <div
             use:onCellClick
             contenteditable
             id="cell-textarea-{i}-{j}"
-            on:focus={() => {
+            on:focus={(e) => {
                 selected = [i, j];
+                console.log('selected', selected);
+                if (selectedValue.trim() === '') {
+                    selectedValue = ' ';
+                    e.target.textContent = ' ';
+                    waitingForSelection = true;
+                }
             }}
             on:input={(e) => {
                 console.log('select', i, j);
@@ -73,14 +90,78 @@
                 history.update();
             }}
             on:keypress={(e) => {
+                console.log(e.key);
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     e.target.blur();
                 }
             }}
+            on:keydown={(e) => {
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    console.log(
+                        'left',
+                        document.getElementById(`cell-textarea-${i}-${j - 1}`),
+                    );
+                    if (j >= 0 && (i !== -1 || j !== 0)) {
+                        // e.target.blur();
+                        selected = [i, j - 1];
+                        waitingForSelection = true;
+                        e.target.blur();
+                        document
+                            .getElementById(`cell-textarea-${i}-${j - 1}`)
+                            .click();
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    console.log(
+                        'right',
+                        document.getElementById(`cell-textarea-${i}-${j + 1}`),
+                    );
+                    if (j < colHeaders.length - 1) {
+                        // e.target.blur();
+                        selected = [i, j + 1];
+                        waitingForSelection = true;
+                        e.target.blur();
+                        document
+                            .getElementById(`cell-textarea-${i}-${j + 1}`)
+                            .click();
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    console.log(
+                        'up',
+                        document.getElementById(`cell-textarea-${i - 1}-${j}`),
+                    );
+                    if (i >= 0 && (i !== 0 || j !== -1)) {
+                        // e.target.blur();
+                        selected = [i - 1, j];
+                        waitingForSelection = true;
+                        e.target.blur();
+                        document
+                            .getElementById(`cell-textarea-${i - 1}-${j}`)
+                            .click();
+                    }
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    console.log(
+                        'down',
+                        document.getElementById(`cell-textarea-${i + 1}-${j}`),
+                    );
+                    if (i < rowHeaders.length - 1) {
+                        // e.target.blur();
+                        selected = [i + 1, j];
+                        waitingForSelection = true;
+                        e.target.blur();
+                        document
+                            .getElementById(`cell-textarea-${i + 1}-${j}`)
+                            .click();
+                    }
+                }
+            }}
         />
     </div>
-{:else if selectedValue != null && selectedValue.trim() !== ''}
+{:else if selectedValue != null}
     <div
         id="cell-textarea-{i}-{j}"
         class="cell {header ? header + '-header' : 'table-cell'}"
@@ -88,7 +169,7 @@
         on:click={() => {
             selected = [i, j];
             waitingForSelection = true;
-            console.log(selected);
+            console.log('selected', selected);
         }}
     >
         {@html display(
@@ -133,6 +214,10 @@
             /* border-color: rgb(77, 77, 77); /* Only change the color on hover */
             background-color: rgba(210, 210, 210, 0.769);
         }
+    }
+
+    .selected {
+        background-color: rgba(210, 210, 210, 0.769);
     }
 
     div[contenteditable] {

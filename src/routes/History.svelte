@@ -42,6 +42,7 @@
 
 <style>
     .history {
+        flex: auto;
         display: flex;
         flex-direction: column-reverse;
         align-items: center;
