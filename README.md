@@ -1,6 +1,6 @@
 # [Simplecalc](https://github.com/thatchedroof/simplecalc/releases/latest)
 
-Simplecalc is a windows desktop calculator for students working on algebra.
+Simplecalc is a desktop calculator for students working on algebra.
 
 ## Calculations
 
@@ -71,7 +71,7 @@ Inputting $\text{undo}$ or $\text{redo}$ undoes/redoes the last command.
 
 ### Clear
 
-Inputting $\text{clear}$ erases the entire calculation history.
+Inputting $\text{clearall}$ erases the entire calculation history.
 
 ## Known issues
 
