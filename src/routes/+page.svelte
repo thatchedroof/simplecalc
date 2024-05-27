@@ -1,11 +1,18 @@
 <script lang="ts">
-    import { MathParser, latexizeEquation } from '$lib/MathParser.js';
-    import { onMount, onDestroy } from 'svelte';
+    import { isConstantNode } from 'mathjs';
+    import {
+        MathParser,
+        removeReplacements,
+        applyReplacements,
+        applyFunctionToNonSymbolNodes,
+        searchEquationForSymbols,
+    } from '$lib/MathParser.js';
+    import { onMount, onDestroy, tick } from 'svelte';
     import History from './History.svelte';
     import sanitizeHtml from 'sanitize-html';
     import { SvelteToast, toast } from '@zerodevx/svelte-toast';
     import * as math from 'mathjs';
-    import { parser } from '$lib';
+    import { parser, latexizeEquation } from '$lib';
     import { beforeUpdate, afterUpdate } from 'svelte';
     import chroma from 'chroma-js';
     import { appWindow } from '@tauri-apps/api/window';
@@ -19,8 +26,29 @@
         attachConsole,
     } from 'tauri-plugin-log-api';
     import { history } from '$lib/History';
+    import DOMPurify from 'isomorphic-dompurify';
+    import { SettingsManager } from 'tauri-settings';
+
+    type Schema = {
+        desmosAPIKey: string;
+    };
+
+    let settingKeys = ['desmosAPIKey'];
+
+    const settingsManager = new SettingsManager<Schema>(
+        {
+            // defaults
+            desmosAPIKey: '',
+        },
+        {
+            // options
+            fileName: 'simplecalc-settings',
+        },
+    );
 
     let text = '';
+
+    $: text = text.replaceAll('\n', '');
 
     let editMode = false;
 
@@ -41,7 +69,10 @@
 
     beforeUpdate(() => {
         let activeElement = document.activeElement as HTMLTextAreaElement;
-        if (activeElement && activeElement.id.includes('cell-textarea')) {
+        if (
+            activeElement &&
+            activeElement.classList.contains('cell-textarea')
+        ) {
             return;
         }
         selectionStart = activeElement?.selectionStart || 0;
@@ -50,7 +81,10 @@
 
     afterUpdate(() => {
         let activeElement = document.getElementById('math-input')!;
-        if (activeElement && activeElement.id.includes('cell-textarea')) {
+        if (
+            activeElement &&
+            activeElement.classList.contains('cell-textarea')
+        ) {
             return;
         }
         if (addOneToSelection) {
@@ -71,9 +105,114 @@
         }
     });
 
+    let calculationDialogVisible: boolean = false;
+    let textBoxValue: string = '';
+    let calculationInput: string = '';
+    let dialogStyle: string = '';
+
+    const openCalculationDialog = async (textBox: HTMLTextAreaElement) => {
+        calculationDialogVisible = true;
+        await tick(); // Ensure the DOM is updated before calculating positions
+
+        // Use getCaretPosition here to determine the start position
+        const caretPosition = getCaretPosition(textBox);
+        if (!caretPosition) {
+            console.error('Caret position is out of bounds or undefined');
+            return;
+        }
+
+        const [start] = caretPosition; // Assuming we position the dialog based on the start for simplicity
+
+        const { top, left } = textBox.getBoundingClientRect();
+        // Placeholder logic to position based on the start position
+        // This should be adapted based on actual requirements and element types
+        const lineHeight = parseInt(getComputedStyle(textBox).lineHeight);
+        const scrollTop = textBox.scrollTop;
+        const scrollLeft = textBox.scrollLeft;
+        const dialogTop = top - scrollTop + lineHeight; // Simplified positioning logic
+        const dialogLeft = left - scrollLeft;
+
+        dialogStyle = `top: ${dialogTop}px; left: ${dialogLeft}px;`;
+    };
+
+    function processAndReplaceSelection(
+        processFunction: (text: string) => string,
+    ) {
+        const selection = window.getSelection()!;
+        if (!selection.rangeCount) return false; // No selection was made
+
+        // Check if the selection is inside a contentEditable element or textarea
+        const activeElement = document.activeElement! as HTMLTextAreaElement;
+        const isContentEditable = activeElement.contentEditable === 'true';
+        const isTextarea =
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'INPUT';
+
+        if (isContentEditable || isTextarea) {
+            // For contentEditable elements and textareas
+            if (isTextarea) {
+                // Apply the provided function to the selected text
+                const selectedText = activeElement.value.slice(
+                    activeElement.selectionStart,
+                    activeElement.selectionEnd,
+                );
+                const processedText = processFunction(selectedText);
+                if (processedText === 'undefined') {
+                    // toast.push('Invalid calculation', {
+                    //     theme: {
+                    //         '--toastBackground': '#DD0000D0',
+                    //         '--toastColor': 'white',
+                    //     },
+                    // });
+                    return false;
+                }
+                const startPos = activeElement.selectionStart;
+                const endPos = activeElement.selectionEnd;
+                activeElement.value =
+                    activeElement.value.substring(0, startPos) +
+                    processedText +
+                    activeElement.value.substring(
+                        endPos,
+                        activeElement.value.length,
+                    );
+                text = activeElement.value;
+                activeElement.setSelectionRange(
+                    startPos,
+                    startPos + processedText.length,
+                );
+            } else {
+                const range = selection.getRangeAt(0);
+                const selectedText = range.toString();
+                const processedText = processFunction(selectedText);
+                // Fallback for contentEditable elements
+                range.deleteContents();
+                range.insertNode(document.createTextNode(processedText));
+            }
+        } else {
+            // Fallback for non-editable elements, if necessary
+            console.error(
+                'Selected text must be within a contentEditable element or textarea',
+            );
+        }
+
+        return true;
+    }
+
     let highlightedText = '';
 
-    function highlightBrackets(inputText: string) {
+    // https://stackoverflow.com/questions/6234773/can-i-escape-html-special-chars-in-javascript
+    function escapeHtml(unsafe: string) {
+        return unsafe
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function highlightBrackets(input: string) {
+        const inputText = escapeHtml(input);
+
         const stack: { char: string; index: number; level: number }[] = [];
         const pairs: { [key: number]: number } = {};
         const levels: { [key: number]: number } = {}; // Track levels for both opening and closing brackets
@@ -137,7 +276,7 @@
             })
             .join('');
 
-        return out;
+        return DOMPurify.sanitize(out);
     }
 
     $: highlightedText = highlightBrackets(text);
@@ -148,17 +287,29 @@
     }
 
     // function handleScroll(event: Event) {
+    // let activeElement = document.activeElement;
+
+    // if (activeElement && activeElement.classList.contains('cell-textarea')) {
+    //     return;
+    // }
     //     const target = event.target as HTMLElement;
     //     // Check if we're close to the top of the container
     //     if (target.scrollTop < 100) {
     //         loadMessages();
     //     }
     // }
+    function handleKeyup(event: KeyboardEvent) {
+        if (event.key === 'Alt') {
+        }
+    }
 
     function handleKeydown(event: KeyboardEvent) {
         let activeElement = document.activeElement;
 
-        if (activeElement && activeElement.id.includes('cell-textarea')) {
+        if (
+            activeElement &&
+            activeElement.classList.contains('cell-textarea')
+        ) {
             return;
         }
 
@@ -186,37 +337,129 @@
             }
         }
 
+        if (event.altKey && event.key === 'e') {
+            toggleEditMode();
+            return;
+        }
+
+        if (event.altKey && event.key === 'c') {
+            event.preventDefault();
+            if (editMode) {
+                let selectionProcessed = processAndReplaceSelection((text) =>
+                    parser
+                        .simplifyNonSymbol(text)
+                        // parser
+                        //     .simplify(text)
+                        .toString({ implicit: 'hide' })
+                        .replaceAll(/\s/g, ''),
+                );
+                if (!selectionProcessed) {
+                    return;
+                    openCalculationDialog(
+                        document.getElementById(
+                            'math-input',
+                        )! as HTMLTextAreaElement,
+                    );
+                }
+            }
+            return;
+        }
+
+        if (event.altKey && event.key === 'f') {
+            text = parser.format(text);
+        }
+
+        if (event.altKey && event.key === 'u') {
+            history.undo();
+            history.switch = !history.switch;
+            return;
+        }
+
+        if (event.altKey && event.key === 'd') {
+            event.preventDefault();
+            if (editMode) {
+                let selectionProcessed = processAndReplaceSelection((text) =>
+                    parser
+                        .distribute(text)
+                        .toString({ implicit: 'hide' })
+                        .replaceAll(/\s/g, ''),
+                );
+                if (!selectionProcessed) {
+                    text = parser
+                        .distribute(text)
+                        .toString({ implicit: 'hide' })
+                        .replaceAll(/\s/g, '');
+                }
+            }
+        }
+
         if (event.key === 'Enter') {
             text = text + afterText;
             afterText = '';
 
-            text = text.replace(
-                /([\u00C0-\u02AF\u0370-\u03FF\u2100-\u214F\u{1D400}-\u{1D7FF}a-zA-Z_$])'+/gu,
-                function (match, p1) {
-                    return p1 + '_prime'.repeat(match.length - 1);
-                },
+            text = applyReplacements(text);
+
+            text = text.replaceAll(
+                /(acos|acosh|acot|acoth|acsc|acsch|asec|asech|asin|asinh|atan|atan2|atanh|cos|cosh|cot|coth|csc|csch|sec|sech|sin|sinh|tan|tanh)([a-zA-Z])(?=[^a-zA-Z]|$)/g,
+                '$1($2)',
             );
 
             historySelected = 0;
             let ditto = false;
+            let trimmedText = text.trim();
             if (text.replaceAll(/\s+/g, '').toLowerCase() === 'clearall') {
                 history.clearall();
                 history.switch = !history.switch;
                 text = '';
                 return;
-            } else if (text.trim().toLowerCase() === 'undo') {
+            } else if (trimmedText.toLowerCase() === 'undo') {
                 history.undo();
                 history.switch = !history.switch;
                 text = '';
                 return;
-            } else if (text.trim().toLowerCase() === 'redo') {
+            } else if (trimmedText.toLowerCase() === 'redo') {
                 history.redo();
                 history.switch = !history.switch;
                 text = '';
                 return;
-            } else if (text.trim().toLowerCase().startsWith('del ')) {
+            } else if (trimmedText.toLowerCase().startsWith('set:')) {
+                let assignment = trimmedText.split(':', 2)[1];
+                let [setting, value] = assignment.split('=', 2);
+                if (settingKeys.includes(setting.trim())) {
+                    try {
+                        settingsManager.initialize().then(async () => {
+                            settingsManager.setCache(
+                                setting.trim() as keyof Schema,
+                                value.trim(),
+                            );
+                            await settingsManager.syncCache();
+                        });
+
+                        toast.push(`Setting ${setting} set to ${value}`, {
+                            theme: {},
+                        });
+
+                        text = '';
+                    } catch (e) {
+                        toast.push((e as any).message, {
+                            theme: {
+                                '--toastBackground': '#DD0000D0',
+                                '--toastColor': 'white',
+                            },
+                        });
+                    }
+                } else {
+                    toast.push(`Setting ${setting} not found`, {
+                        theme: {
+                            '--toastBackground': '#DD0000D0',
+                            '--toastColor': 'white',
+                        },
+                    });
+                }
+                return;
+            } else if (trimmedText.toLowerCase().startsWith('del ')) {
                 // Get the variable name to delete
-                let variable = text.trim().split(' ', 2)[1];
+                let variable = trimmedText.split(' ', 2)[1];
 
                 // Remove the variable from the parser
                 try {
@@ -230,16 +473,57 @@
                     // });
                 }
 
-                history.add(text.trim());
+                history.add(trimmedText);
                 history.switch = !history.switch;
 
                 text = '';
                 return;
-            } else if (text.trim().toLowerCase() === '"') {
+            } else if (trimmedText.toLowerCase() === '"') {
                 text = history.lastCalculationText[0];
                 ditto = true;
-            } else if (text.trim()[0] === '#') {
-                history.add(text.trim(), '#table');
+            } else if (trimmedText[0] === '#') {
+                history.add(trimmedText, '#table');
+                history.switch = !history.switch;
+                text = '';
+                event.preventDefault();
+                return;
+            } else if (
+                trimmedText.toLowerCase() === 'quot' ||
+                trimmedText.toLowerCase() === 'prod'
+            ) {
+                history.add(trimmedText, '#formula');
+                history.switch = !history.switch;
+                text = '';
+                event.preventDefault();
+                return;
+            } else if (trimmedText.startsWith('!')) {
+                const newText = trimmedText.slice(1);
+                // TODO: Should only simplify nodes containing no symbols
+                // if (
+                //     searchEquationForSymbols(parser.parse(newText))
+                //         .length > 0
+                // ) {
+                //     toast.push(
+                //         'Cannot simplify an expression containing variables.',
+                //         {
+                //             theme: {
+                //                 '--toastBackground': '#DD0000D0',
+                //                 '--toastColor': 'white',
+                //             },
+                //         },
+                //     );
+                //     event.preventDefault();
+                //     return;
+                // }
+                console.log(parser.parse(newText));
+                const result = applyFunctionToNonSymbolNodes(
+                    parser.parse(newText),
+                    (x) => parser.simplify(x),
+                );
+                history.add(
+                    '!' + parser.convertString(newText),
+                    result.toString().replaceAll(/\s/g, ''),
+                );
                 history.switch = !history.switch;
                 text = '';
                 event.preventDefault();
@@ -247,35 +531,47 @@
             }
             // Evaluate the text and add it to the history
             try {
-                const result = parser.evaluate(text).toString();
+                console.log('text', text);
+                console.log(parser.evaluate(text));
+                const result = resultToString(parser.evaluate(text));
                 if (result === 'undefined' || result.trim() === '') {
                     return;
                 }
-                history.add(text, result);
+                console.log('result', result);
+                history.add(parser.convertString(text), result);
                 history.switch = !history.switch;
                 text = ditto ? '"' : '';
             } catch (e) {
                 try {
-                    const parsed = parser.math.parse(text);
+                    const parsed = parser.parse(text);
                     const symbols = searchEquationForSymbols(parsed);
                     if (symbols.length === 0) {
                         throw e;
                     }
-                    const result = parser.evaluate(
-                        'func(' + symbols.join() + ')=' + text,
-                    );
+
+                    if (!/\bfunc\b/.test(text)) {
+                        const result = parser.evaluate(
+                            'func(' + symbols.join() + ')=' + text,
+                        );
+                    } else {
+                        const result = parser.evaluate(
+                            'func2Default(' + symbols.join() + ')=' + text,
+                        );
+                    }
+
+                    parser.funcText = text;
 
                     // trace('result simplify 1', result.toString());
                     // const result2 = parser.simplify(text);
                     // trace('result simplify 2', result2);
                     // history = [[text, result2.toString()], ...history];
-                    history.add(text, '');
+                    history.add(parser.convertString(text), '');
                     history.switch = !history.switch;
                     text = ditto ? '"' : '';
                 } catch (e) {
                     try {
                         const parsed = text.split('=').map((t) => {
-                            return parser.math.parse(t);
+                            return parser.parse(t);
                         });
 
                         const symbols = parsed.map((p) => {
@@ -292,6 +588,8 @@
                         history.switch = !history.switch;
                         text = ditto ? '"' : '';
                     } catch (e) {
+                        text = removeReplacements(text);
+                        console.log(e);
                         toast.push((e as any).message, {
                             theme: {
                                 '--toastBackground': '#DD0000D0',
@@ -308,7 +606,6 @@
         if (event.ctrlKey || event.metaKey) {
             return; // This exits the function early if a paste operation is detected
         }
-
         // Check for special cases like up arrow, 'Backspace' and 'Delete'
         if (event.key === 'ArrowUp') {
             console.log(
@@ -321,10 +618,10 @@
             if (historySelected < history.length) {
                 historySelected++;
                 text = history.lastTextByIndex(historySelected)[0];
-                text = text.replace(/_prime/g, "'");
+                text = removeReplacements(text);
             } else if (historySelected === history.length - 1) {
                 text = history.lastTextByIndex(historySelected)[0];
-                text = text.replace(/_prime/g, "'");
+                text = removeReplacements(text);
             }
             event.preventDefault();
         } else if (event.key === 'ArrowDown') {
@@ -338,7 +635,7 @@
             if (historySelected > 1) {
                 historySelected--;
                 text = history.lastTextByIndex(historySelected)[0];
-                text = text.replace(/_prime/g, "'");
+                text = removeReplacements(text);
             } else if (historySelected === 1) {
                 historySelected = 1;
                 text = '';
@@ -521,7 +818,14 @@
     }
 
     function handlePaste(event: ClipboardEvent) {
-        if (editMode) {
+        let activeElement = document.activeElement;
+
+        if (
+            activeElement &&
+            activeElement.classList.contains('cell-textarea')
+        ) {
+            return;
+        } else if (editMode) {
             return;
         }
 
@@ -540,7 +844,14 @@
     }
 
     function handleCopy(event: ClipboardEvent) {
-        if (editMode) {
+        let activeElement = document.activeElement;
+
+        if (
+            activeElement &&
+            activeElement.classList.contains('cell-textarea')
+        ) {
+            return;
+        } else if (editMode) {
             return;
         }
         // Prevent the default copy action
@@ -561,6 +872,7 @@
         window.addEventListener('paste', handlePaste);
         window.addEventListener('copy', handleCopy);
         window.addEventListener('keydown', handleKeydown);
+        window.addEventListener('keyup', handleKeyup);
 
         const stylesheet = document.getElementById(
             'katexCSS',
@@ -583,6 +895,8 @@
                 syncScroll(textarea, overlay);
             });
         }
+
+        parser.addFuncsToScope();
     });
 
     onDestroy(() => {
@@ -599,29 +913,8 @@
         afterText = '';
     }
 
-    function searchEquationForSymbols(
-        equation: math.MathNode | math.MathNode[],
-    ) {
-        let symbols: string[] = [];
-        if (Array.isArray(equation)) {
-            equation.forEach((node) => {
-                symbols = symbols.concat(searchEquationForSymbols(node));
-            });
-        } else {
-            if (equation.isSymbolNode) {
-                symbols.push(equation.name);
-            }
-            equation.forEach((node, path, parent) => {
-                if (!path.includes('fn')) {
-                    symbols = symbols.concat(searchEquationForSymbols(node));
-                }
-            });
-        }
-        return [...new Set(symbols)];
-    }
-
     function parseToHtml(text: string) {
-        let parsed = parser.math.parse(text + afterText);
+        let parsed = parser.parse(text + afterText);
         let options = { parenthesis: 'keep', implicit: 'hide' };
         let html = sanitizeHtml(parsed.toHTML(options), {
             allowedTags: ['span', 'sub', 'sup', 'div', 'br'],
@@ -680,12 +973,25 @@
         return out;
     }
 
+    function resultToString(result: any) {
+        try {
+            if ('set_value' in result) {
+                return `{"set_value":${result.set_value}}`;
+            } else {
+                return result.toString();
+            }
+        } catch (e) {
+            return result.toString();
+        }
+    }
+
     let options = {
         duration: 1000,
         position: 'bottom-right' as const,
     };
 </script>
 
+<div class="background"></div>
 <div class="container">
     <History history={history.latexHistory} />
 
@@ -736,6 +1042,16 @@
         background: transparent;
     }
 
+    .background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0);
+        filter: brightness(1000%);
+    }
+
     :global(body) {
         font-family: 'Inter', sans-serif;
         margin: 0;
@@ -773,13 +1089,26 @@
         font-weight: 100;
         padding: 0.66666666em;
         width: calc(100vw);
-        height: 1em;
+        height: auto;
+        min-height: 1em;
         /* color: white; */
         /* background-color: #2e2e2e; */
         /* background-color: #eaeaea; */
         overflow: hidden;
         background-color: rgba(255, 255, 255, 0);
-        color: rgb(255, 255, 255);
+        --stroke-color: rgb(155, 155, 155);
+        text-shadow: 1px 1px 3px #0004;
+        font-feature-settings: 'calt' 1;
+        font-variant-alternates: normal;
+        /* text-shadow:
+            -1px -1px 0 var(--stroke-color),
+            0 -1px 0 var(--stroke-color),
+            1px -1px 0 var(--stroke-color),
+            1px 0 0 var(--stroke-color),
+            1px 1px 0 var(--stroke-color),
+            0 1px 0 var(--stroke-color),
+            -1px 1px 0 var(--stroke-color),
+            -1px 0 0 var(--stroke-color); */
     }
 
     textarea {
@@ -787,6 +1116,7 @@
         border: 0 none;
         outline: none;
         resize: none;
+        color: rgba(255, 255, 255);
     }
 
     .overlay {
@@ -797,6 +1127,8 @@
         z-index: 11;
         background-color: transparent;
         mix-blend-mode: multiply;
+        font-feature-settings: 'calt' 1;
+        color: rgba(255, 255, 255, 0);
     }
 
     .container {
@@ -823,19 +1155,19 @@
     }
 
     :global(.highlight-0) {
-        --highlight-color: rgb(211, 90, 255);
+        --highlight-color: rgb(186, 186, 186);
         color: var(--highlight-color); /* Highlight color */
         -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-1) {
-        --highlight-color: rgb(92, 92, 255);
+        --highlight-color: rgb(147, 147, 243);
         color: var(--highlight-color); /* Highlight color */
         -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }
 
     :global(.highlight-2) {
-        --highlight-color: rgb(74, 138, 156);
+        --highlight-color: rgb(93, 183, 207);
         color: var(--highlight-color); /* Highlight color */
         -webkit-text-stroke: var(--highlight-color) var(--highlight-outline-px);
     }

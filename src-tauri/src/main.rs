@@ -46,7 +46,7 @@ fn main() {
             //     .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
 
             #[cfg(target_os = "windows")]
-            apply_acrylic(&window, Some((255, 255, 255, 254)))
+            apply_acrylic(&window, Some((0, 0, 0, 0)))
                 .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
 
             Ok(())

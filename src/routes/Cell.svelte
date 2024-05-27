@@ -1,6 +1,6 @@
 <script lang="ts">
     import { parser } from '$lib';
-    import { latexizeEquation } from '$lib/MathParser.js';
+    import { latexizeEquation } from '$lib';
     import { text } from '@sveltejs/kit';
     import { math, display } from 'mathlifier';
     import { history } from '$lib/History.js';
@@ -66,6 +66,7 @@
             use:onCellClick
             contenteditable
             id="cell-textarea-{i}-{j}"
+            class="cell-textarea"
             on:focus={(e) => {
                 selected = [i, j];
                 console.log('selected', selected);
@@ -162,6 +163,8 @@
         />
     </div>
 {:else if selectedValue != null}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
         id="cell-textarea-{i}-{j}"
         class="cell {header ? header + '-header' : 'table-cell'}"

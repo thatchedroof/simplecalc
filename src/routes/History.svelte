@@ -2,29 +2,14 @@
     import { equation } from 'mathlifier';
     import Calculation from './Calculation.svelte';
     import Table from './Table.svelte';
+    import type { HistoryRow } from '$lib/History.js';
+    import Formula from './Formula.svelte';
 
-    export let history: (
-        | [
-              {
-                  latex: string;
-                  plain: string;
-              },
-              {
-                  latex: string;
-                  plain: string;
-              },
-          ]
-        | {
-              dims: [number, number];
-              rowHeaders: string[];
-              colHeaders: string[];
-              table: string[][];
-          }
-    )[];
+    export let history: HistoryRow[];
 </script>
 
 <div class="history">
-    {#each history.toReversed() as line}
+    {#each history.toReversed().slice(0, 100) as line}
         {#if 'length' in line}
             <Calculation equation={line[0]} result={line[1]} />
         {:else if 'table' in line}
@@ -35,6 +20,8 @@
                 rowHeaders={line.rowHeaders}
                 colHeaders={line.colHeaders}
             />
+        {:else if 'formula' in line}
+            <Formula formula={line.formula} />
         {/if}
     {/each}
     <!-- <div class="top"></div> -->
@@ -53,6 +40,7 @@
         background-color: rgba(255, 255, 255, 0.7);
         scrollbar-width: none; /* For Firefox */
         -ms-overflow-style: none; /* For Internet Explorer and Edge */
+        mix-blend-mode: soft-light;
     }
 
     .history::-webkit-scrollbar {

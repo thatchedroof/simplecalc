@@ -1,24 +1,28 @@
-import { latexizeEquation } from '$lib/MathParser.js';
+import { latexizeEquation } from '$lib';
 import { Store } from 'tauri-plugin-store-api';
 import { parser } from '$lib';
+import { removeReplacements } from '$lib/MathParser';
 
-type HistoryRow =
+export type HistoryRow =
     | [
-        {
-            latex: string;
-            plain: string;
-        },
-        {
-            latex: string;
-            plain: string;
-        },
-    ]
+          {
+              latex: string;
+              plain: string;
+          },
+          {
+              latex: string;
+              plain: string;
+          },
+      ]
     | {
-        dims: [number, number];
-        rowHeaders: string[];
-        colHeaders: string[];
-        table: string[][];
-    };
+          dims: [number, number];
+          rowHeaders: string[];
+          colHeaders: string[];
+          table: string[][];
+      }
+    | {
+          formula: any;
+      };
 
 class CalculationHistory {
     private history: HistoryRow[] = [];
@@ -33,10 +37,11 @@ class CalculationHistory {
     }
 
     async init() {
-        this.history = await this.store.get('history') ?? [];
-        this.scopeHistory = await this.store.get('scopeHistory') ?? [];
-        this.redoHistory = await this.store.get('redoHistory') ?? [];
-        this.scopeRedoHistory = await this.store.get('scopeRedoHistory') ?? [];
+        this.history = (await this.store.get('history')) ?? [];
+        this.scopeHistory = (await this.store.get('scopeHistory')) ?? [];
+        this.redoHistory = (await this.store.get('redoHistory')) ?? [];
+        this.scopeRedoHistory =
+            (await this.store.get('scopeRedoHistory')) ?? [];
     }
 
     async update() {
@@ -45,7 +50,13 @@ class CalculationHistory {
         this.store.set('redoHistory', this.redoHistory);
         this.store.set('scopeRedoHistory', this.scopeRedoHistory);
 
-        console.log('update', this.history, this.scopeHistory, this.redoHistory, this.scopeRedoHistory);
+        console.log(
+            'update',
+            this.history,
+            this.scopeHistory,
+            this.redoHistory,
+            this.scopeRedoHistory,
+        );
     }
 
     async add(expr: string, result: string = '') {
@@ -55,9 +66,16 @@ class CalculationHistory {
         this.store.set('history', this.history);
         this.store.set('scopeHistory', this.scopeHistory);
 
-        this.scopeHistory = await this.store.get('scopeHistory') ?? [];
+        this.scopeHistory = (await this.store.get('scopeHistory')) ?? [];
 
-        console.log('add', expr, result, this.history, this.scopeHistory, parser.scope);
+        console.log(
+            'add',
+            expr,
+            result,
+            this.history,
+            this.scopeHistory,
+            parser.scope,
+        );
 
         // Clear redo history
         this.store.set('redoHistory', []);
@@ -80,7 +98,14 @@ class CalculationHistory {
 
             parser.scope = this.scopeHistory[this.scopeHistory.length - 1];
 
-            console.log('undo', this.history, this.scopeHistory, this.redoHistory, this.scopeRedoHistory, parser.scope);
+            console.log(
+                'undo',
+                this.history,
+                this.scopeHistory,
+                this.redoHistory,
+                this.scopeRedoHistory,
+                parser.scope,
+            );
 
             this.store.save();
         }
@@ -98,7 +123,14 @@ class CalculationHistory {
 
             parser.scope = this.scopeHistory[this.scopeHistory.length - 1];
 
-            console.log('redo', this.history, this.scopeHistory, this.redoHistory, this.scopeRedoHistory, parser.scope);
+            console.log(
+                'redo',
+                this.history,
+                this.scopeHistory,
+                this.redoHistory,
+                this.scopeRedoHistory,
+                parser.scope,
+            );
 
             this.store.save();
         }
@@ -151,8 +183,10 @@ class CalculationHistory {
 
         if (lastRow instanceof Array) {
             return [lastRow[0].plain, lastRow[1].plain];
-        } else {
+        } else if ('dims' in lastRow) {
             return [`#${lastRow.dims[0]}x${lastRow.dims[1]}`, '#table'];
+        } else {
+            return [lastRow.formula.code, '#formula'];
         }
     }
 }
@@ -160,7 +194,6 @@ class CalculationHistory {
 export const history = new CalculationHistory();
 
 function latexizeHistoryRow(row: [string, string]): HistoryRow {
-
     let [equation, result] = row;
 
     if (equation[0] === '#') {
@@ -174,9 +207,7 @@ function latexizeHistoryRow(row: [string, string]): HistoryRow {
             colHeaders: Array(c).fill(''),
             table: Array.from({ length: r }, () => Array(c).fill('')),
         };
-    }
-
-    if (equation.trim().startsWith('del ')) {
+    } else if (equation.trim().startsWith('del ')) {
         equation = equation.slice(4);
         return [
             {
@@ -188,14 +219,28 @@ function latexizeHistoryRow(row: [string, string]): HistoryRow {
                 plain: '',
             },
         ];
+    } else if (equation.trim() === 'quot' || equation.trim() === 'prod') {
+        return {
+            formula: {
+                code: equation.trim(),
+                f: '',
+                g: '',
+                df: '',
+                dg: '',
+            },
+        };
+    }
+
+    if (equation.trim().startsWith('!')) {
+        equation = equation.slice(1);
     }
 
     let parsedEquation = latexizeEquation(equation, parser, true);
 
     let parsedResult = latexizeEquation(result, parser, true);
 
-    parsedEquation = parsedEquation.replace(/\\*_prime/g, "'");
-    parsedResult = parsedResult.replace(/\\*_prime/g, "'");
+    parsedEquation = removeReplacements(parsedEquation);
+    parsedResult = removeReplacements(parsedResult);
 
     return [
         {

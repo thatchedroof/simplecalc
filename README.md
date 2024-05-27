@@ -73,6 +73,16 @@ Inputting $\text{undo}$ or $\text{redo}$ undoes/redoes the last command.
 
 Inputting $\text{clearall}$ erases the entire calculation history.
 
+### Shortcuts
+
+| Shortcut | Description                                                              |
+| -------- | ------------------------------------------------------------------------ |
+| Alt+f    | Formats the current equation, removing any unnecessary parentheses       |
+| Alt+e    | Toggles edit/type mode                                                   |
+| Alt+c    | **Upcoming:** Enables a quick inline calculation                         |
+| Alt+u    | Equivalent to $\text{undo}$                                              |
+| Alt+d    | Applies the distributive property on $*$, $/$, or $-$ over selected text |
+
 ## Known issues
 
 -   [ ] Parentheses work weirdly sometimes in edit mode

@@ -1,7 +1,8 @@
+patch = { crates-io = { window-vibrancy = { path = 'C:\Users\tnert\.rhack\window-vibrancy-0.4.3' } } }
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
+description = "simplecalc"
 authors = ["thatchedroof"]
 license = ""
 repository = ""
